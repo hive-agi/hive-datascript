@@ -56,3 +56,13 @@
   "Activity window (ms) after which a ling row counts as stale."
   []
   (or (:stale-threshold-ms @hooks) default-stale-threshold-ms))
+
+(defn scope-rows
+  "The ROWS a session owns, via the :scope-rows hook (fn [opts session-key
+   rows]). OPTS carries :session-ref and :parent-of; SESSION-KEY names the
+   row attribute holding the writing session. Without the hook, or without a
+   :session-ref, the rows pass through unscoped."
+  [opts session-key rows]
+  (if-let [f (:scope-rows @hooks)]
+    (f opts session-key rows)
+    rows))
