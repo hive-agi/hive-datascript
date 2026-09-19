@@ -1,0 +1,5 @@
+{:project-id "hive-datascript"
+ :parent "hive"
+ :description "DataScript (in-memory) implementation of the hive-spi.swarm store ports: ISwarmRegistry, IClaimStore, ICriticalOps, ICoordination, ISwarmDb. Thresholds and session scoping are injected by the host; carries no hive-agent or hive-mcp dependency."
+ :language :clojure
+ :tags ["swarm" "datascript" "storage-backend" "spi-impl" "devinculation"] :carto {:source-roots ["src" "test"]}}
