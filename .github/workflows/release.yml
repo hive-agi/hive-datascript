@@ -17,7 +17,19 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: DeLaGuardo/setup-clojure@13.0
+        with:
+          cli: latest
+
+      - run: clojure -M:test
+
   release:
+    needs: test
     runs-on: ubuntu-latest
     permissions:
       contents: write
