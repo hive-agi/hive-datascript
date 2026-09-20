@@ -8,8 +8,8 @@
         io.github.hive-agi/hive-spi {:mvn/version "1.2.0"}
 
         ;; hive-dsl: Result/rescue. hive-di: defconfig for coordination config.
-        io.github.hive-agi/hive-dsl {:mvn/version "0.5.29"}
-        io.github.hive-agi/hive-di  {:mvn/version "0.4.14"}
+        io.github.hive-agi/hive-dsl {:mvn/version "0.5.30"}
+        io.github.hive-agi/hive-di  {:mvn/version "0.4.15"}
 
         com.taoensso/timbre {:mvn/version "6.8.0"}
         metosin/malli {:mvn/version "0.20.1"}}
@@ -18,11 +18,11 @@
  {:test {:extra-paths ["test"]
          :extra-deps  {io.github.cognitect-labs/test-runner
                        {:git/tag "v0.5.1" :git/sha "dfb30dd"}
-                       io.github.hive-agi/hive-test {:mvn/version "0.4.7"}}
+                       io.github.hive-agi/hive-test {:mvn/version "0.4.8"}}
          :main-opts ["-m" "cognitect.test-runner"]
          :exec-fn cognitect.test-runner.api/test}
 
   ;; Clojars publishing. version = the repo's VERSION file.
   :build
-  {:deps {io.github.hive-agi/hive-build {:mvn/version "0.1.19"}}
+  {:deps {io.github.hive-agi/hive-build {:mvn/version "0.1.21"}}
    :ns-default hive-build.api}}}
