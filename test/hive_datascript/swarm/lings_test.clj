@@ -6,7 +6,8 @@
             [datascript.core :as d]
             [hive-datascript.swarm.connection :as conn]
             [hive-datascript.swarm.lings :as lings]
-            [hive-datascript.swarm.queries :as queries]))
+            [hive-datascript.swarm.queries :as queries]
+            [hive-spi.swarm.ports.events :as events-port]))
 
 (defn fresh-conn-fixture
   "Bind a fresh in-memory conn per test; clear host hooks so no stale
@@ -182,6 +183,52 @@
     (is (nil? (queries/get-claims-for-file "a.clj")))
     (is (nil? (queries/get-claims-for-file "b.clj")))
     (is (some? (queries/get-claims-for-file "c.clj")))))
+
+(defn- recording-events
+  "An events port stub whose dispatch! records every event vector into
+   SEEN (an atom). Every handler counts as registered."
+  [seen]
+  (reify events-port/IEventDispatch
+    (dispatch! [_ event-v] (swap! seen conj event-v) event-v)
+    (handler-registered? [_ _event-id] true)))
+
+(defn- released-events
+  "Run F with a recording events port installed; return the
+   :claim/file-released payloads it dispatched, keyed by :file."
+  [f]
+  (let [seen (atom [])]
+    (events-port/set-events! (recording-events seen))
+    (try
+      (f)
+      (finally (events-port/clear-events!)))
+    (into {}
+          (keep (fn [[id payload]]
+                  (when (= :claim/file-released id)
+                    [(:file payload) payload])))
+          @seen)))
+
+(deftest release-reports-the-holder-as-released-by-test
+  (testing "release-claim! names the slave that held the claim"
+    (lings/add-slave! "s-1" {})
+    (lings/claim-file! "f.clj" "s-1")
+    (let [evs (released-events #(lings/release-claim! "f.clj"))]
+      (is (= {:file "f.clj" :released-by "s-1"} (get evs "f.clj")))))
+  (testing "complete-task! releases through release-claims-for-task!, sender is the holder"
+    (lings/add-slave! "s-2" {})
+    (lings/add-task! "t-2" "s-2" {})
+    (lings/claim-file! "a.clj" "s-2" {:task-id "t-2"})
+    (lings/claim-file! "b.clj" "s-2" {:task-id "t-2"})
+    (let [evs (released-events #(lings/complete-task! "t-2"))]
+      (is (= #{"a.clj" "b.clj"} (set (keys evs))))
+      (is (every? #(= "s-2" (:released-by %)) (vals evs)))))
+  (testing "release-claims-for-slave! names that slave on every release"
+    (lings/add-slave! "s-3" {})
+    (lings/claim-file! "c.clj" "s-3")
+    (lings/claim-file! "d.clj" "s-3")
+    (let [evs (released-events #(lings/release-claims-for-slave! "s-3"))]
+      (is (= {"c.clj" {:file "c.clj" :released-by "s-3"}
+              "d.clj" {:file "d.clj" :released-by "s-3"}}
+             evs)))))
 
 (deftest stale-claim-cleanup-test
   (testing "cleanup-stale-claims! releases only claims older than threshold"
