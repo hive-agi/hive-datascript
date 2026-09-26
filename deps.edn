@@ -12,7 +12,7 @@
         io.github.hive-agi/hive-di  {:mvn/version "0.4.17"}
 
         com.taoensso/timbre {:mvn/version "6.8.0"}
-        metosin/malli {:mvn/version "0.20.1"}}
+        metosin/malli {:mvn/version "0.20.2"}}
 
  :aliases
  {:test {:extra-paths ["test"]
