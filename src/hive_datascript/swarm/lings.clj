@@ -379,6 +379,10 @@
 
    When a claim is released, the event system notifies any lings
    that were waiting for access to this file (file-claim event cascade).
+   The event carries :released-by, the slave id that HELD the claim (read
+   before the retract), so the wake-up is sent from the releasing ling
+   rather than an anonymous coordinator. It is absent when the claim had
+   no holding slave.
 
    DUAL-STORE SYNC: the :claim-released hook (installed by the host) clears
    the claim from the logic db too, so no ghost claim is left there.
@@ -391,14 +395,17 @@
   [file-path]
   (let [c (conn/ensure-conn)
         db @c]
-    (when-let [eid (:db/id (d/entity db [:claim/file file-path]))]
+    (when-let [claim (d/entity db [:claim/file file-path])]
       (log/debug "Releasing claim:" file-path)
-      (let [result (d/transact! c [[:db/retractEntity eid]])
+      (let [released-by (get-in claim [:claim/slave :slave/id])
+            result (d/transact! c [[:db/retractEntity (:db/id claim)]])
             events (events-port/get-events)]
         (hooks/claim-released! file-path)
         ;; Dispatch only once a handler is registered (not during bootstrap)
         (when (events-port/handler-registered? events :claim/file-released)
-          (events-port/dispatch! events [:claim/file-released {:file file-path}]))
+          (events-port/dispatch! events [:claim/file-released
+                                         (cond-> {:file file-path}
+                                           released-by (assoc :released-by released-by))]))
         result))))
 
 (defn release-claims-for-slave!
