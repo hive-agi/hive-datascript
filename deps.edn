@@ -5,11 +5,11 @@
         datascript/datascript {:mvn/version "1.8.1"}
 
         ;; hive-spi: the swarm store ports this library implements.
-        io.github.hive-agi/hive-spi {:mvn/version "1.4.2"}
+        io.github.hive-agi/hive-spi {:mvn/version "1.4.4"}
 
         ;; hive-dsl: Result/rescue. hive-di: defconfig for coordination config.
-        io.github.hive-agi/hive-dsl {:mvn/version "0.5.34"}
-        io.github.hive-agi/hive-di  {:mvn/version "0.4.18"}
+        io.github.hive-agi/hive-dsl {:mvn/version "0.5.36"}
+        io.github.hive-agi/hive-di  {:mvn/version "0.4.19"}
 
         com.taoensso/timbre {:mvn/version "6.8.0"}
         metosin/malli {:mvn/version "0.20.2"}}
