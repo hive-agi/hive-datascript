@@ -371,7 +371,7 @@
                   qn (assoc :claim/qn qn)
                   mode (assoc :claim/mode mode))]
     (log/debug "Claiming file:" file-path "for slave:" slave-id
-               (when prior-hash (str "hash:" (subs prior-hash 0 8) "...")))
+               (when prior-hash (str "hash:" (subs prior-hash 0 (min 8 (count prior-hash))) "...")))
     (d/transact! c [tx-data])))
 
 (defn release-claim!

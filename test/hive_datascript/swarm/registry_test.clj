@@ -9,7 +9,9 @@
             [hive-datascript.swarm.connection :as conn]
             [hive-datascript.swarm.registry :as registry]
             [hive-datascript.swarm.queries :as queries]
-            [hive-datascript.swarm.lings :as lings]))
+            [hive-datascript.swarm.lings :as lings]
+            [hive-test.trifecta :refer [deftrifecta]]
+            [clojure.test.check.generators :as gen]))
 
 (defn fresh-conn-fixture [f]
   (conn/with-test-conn (conn/create-conn) f))
@@ -195,12 +197,32 @@
     ;; -listen! returns the listener key it registered
     (is (= :test-listener (proto/-listen! db :test-listener (fn [_ _]))))
     (proto/-unlisten! db :test-listener)
-    ;; -reset-db! delegates to conn/reset-conn! which resets the GLOBAL conn
-    ;; atom only; the *test-conn* binding stays in scope, so the current
-    ;; (test) db is unaffected by the reset.
-    (proto/-reset-db! db)
-    (is (some? (d/entity (proto/-current-db db) [:slave/id "raw-1"]))
-        "reset-conn! resets the global atom, not the bound test-conn")))
+    ;; -reset-db! clears the bound *test-conn* in place, not the global conn.
+    (let [bound (conn/get-conn)]
+      (proto/-reset-db! db)
+      (is (identical? bound (conn/get-conn))
+          "reset preserves the identity of the bound test connection")
+      (is (nil? (d/entity (proto/-current-db db) [:slave/id "raw-1"]))
+          "reset clears the bound test connection"))))
+
+(defn reset-bound-conn-observation
+  "Observe reset through the ISwarmDb port on an isolated connection."
+  [slave-id]
+  (let [test-conn (conn/create-conn)]
+    (conn/with-test-conn test-conn
+      (fn []
+        (proto/-transact! db [{:slave/id slave-id}])
+        (proto/-reset-db! db)
+        {:same-conn? (identical? test-conn (conn/get-conn))
+         :cleared? (nil? (d/entity (proto/-current-db db) [:slave/id slave-id]))}))))
+
+(deftrifecta reset-bound-conn-trifecta reset-bound-conn-observation
+  {:golden-path "test/golden/reset-bound-conn.edn"
+   :cases {:single "one" :another "two"}
+   :gen (gen/fmap #(str "slave-" %) gen/small-integer)
+   :pred #(= {:same-conn? true :cleared? true} %)
+   :num-tests 30
+   :mutations [["reset-does-not-clear" (fn [_] {:same-conn? true :cleared? false})]]})
 
 ;;; =============================================================================
 ;;; Property: registry delegates stay consistent with the underlying store
