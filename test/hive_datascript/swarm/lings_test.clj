@@ -7,7 +7,9 @@
             [hive-datascript.swarm.connection :as conn]
             [hive-datascript.swarm.lings :as lings]
             [hive-datascript.swarm.queries :as queries]
-            [hive-spi.swarm.ports.events :as events-port]))
+            [hive-spi.swarm.ports.events :as events-port]
+            [hive-test.trifecta :refer [deftrifecta]]
+            [clojure.test.check.generators :as gen]))
 
 (defn fresh-conn-fixture
   "Bind a fresh in-memory conn per test; clear host hooks so no stale
@@ -158,11 +160,33 @@
       (is (= "t-1" (:task-id c)))
       (is (= "abc12345" (:prior-hash c)))
       (is (some? (:created-at c))))
+    (lings/claim-file! "short.clj" "s-1" {:prior-hash "abc"})
+    (is (= "abc" (:prior-hash (queries/get-claims-for-file "short.clj")))
+        "a short prior hash does not break claim creation")
     ;; phantom task id: no entity -> no ref, but the claim itself still exists
     (lings/claim-file! "g.clj" "s-1" {:task-id "phantom"})
     (let [c (queries/get-claims-for-file "g.clj")]
       (is (= "s-1" (:slave-id c)))
       (is (nil? (:task-id c))))))
+
+(defn claim-short-hash-observation
+  "Claim a file with a short prior hash through the public API."
+  [prior-hash]
+  (let [test-conn (conn/create-conn)]
+    (conn/with-test-conn test-conn
+      (fn []
+        (lings/add-slave! "short-hash-slave" {})
+        (lings/claim-file! "short-hash.clj" "short-hash-slave"
+                           {:prior-hash prior-hash})
+        (:prior-hash (queries/get-claims-for-file "short-hash.clj"))))))
+
+(deftrifecta claim-short-hash-trifecta claim-short-hash-observation
+  {:golden-path "test/golden/claim-short-hash.edn"
+   :cases {:empty "" :short "abc" :long "abc12345"}
+   :gen (gen/fmap #(apply str %) (gen/vector gen/char-alphanumeric 0 7))
+   :pred string?
+   :num-tests 30
+   :mutations [["drops-hash" (fn [_] nil)]]})
 
 (deftest release-claim-test
   (testing "release-claim! removes the claim; nil when unclaimed"

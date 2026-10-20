@@ -60,12 +60,15 @@
   *test-conn*)
 
 (defn reset-conn!
-  "Reset the global connection to empty state."
+  "Reset the active connection to empty state. Within with-test-conn, clear
+   the bound test connection without touching the global connection."
 
   []
   (guards/when-not-coordinator
    "ds/reset-conn! blocked"
-   (reset! conn (create-conn))
+   (if *test-conn*
+     (d/reset-conn! *test-conn* (d/empty-db schema/schema))
+     (reset! conn (create-conn)))
    (log/debug "Swarm DataScript connection reset")))
 
 (defn ensure-conn
