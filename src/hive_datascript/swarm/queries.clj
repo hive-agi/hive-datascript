@@ -14,7 +14,8 @@
             [clojure.set]
             [clojure.string :as str]
             [hive-datascript.swarm.connection :as conn]
-            [hive-datascript.swarm.hooks :as hooks]))
+            [hive-datascript.swarm.hooks :as hooks]
+            [hive-datascript.swarm.slave-index :as slave-index]))
 
 ;; Forward declaration for functions used before definition
 (declare get-all-slaves)
@@ -215,21 +216,17 @@
                        Default false: filters out zombies + stale rows.
                        Legacy rows (no :slave/alive? attr) treated as alive.
 
+   Rows come from `slave-index`, read once and advanced per transaction; a
+   test connection reads them fresh.
+
    Returns:
      Seq of maps with slave attributes"
   [& {:keys [include-stale?] :or {include-stale? false}}]
   (let [c (conn/ensure-conn)
         db @c
-        eids (d/q '[:find [?e ...]
-                    :where [?e :slave/id _]]
-                  db)
-        all (->> eids
-                 (map #(d/entity db %))
-                 (map (fn [e]
-                        (-> (into {} e)
-                            (dissoc :db/id)
-                            (update :slave/parent #(when % (:slave/id %)))
-                            (update :slave/current-task #(when % (:task/id %)))))))]
+        all (vals (if (conn/current-test-conn)
+                    (slave-index/scan db)
+                    (slave-index/slaves c db)))]
     (maybe-filter-stale all include-stale?)))
 
 (defn get-slaves-by-status
