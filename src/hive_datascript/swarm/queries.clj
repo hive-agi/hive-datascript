@@ -15,7 +15,8 @@
             [clojure.string :as str]
             [hive-datascript.swarm.connection :as conn]
             [hive-datascript.swarm.hooks :as hooks]
-            [hive-datascript.swarm.slave-index :as slave-index]))
+            [hive-datascript.swarm.slave-index :as slave-index]
+            [malli.core :as m]))
 
 ;; Forward declaration for functions used before definition
 (declare get-all-slaves)
@@ -618,3 +619,85 @@
                @(conn/ensure-conn))
    :claims (get-all-claims)
    :stats (db-stats)})
+
+;;; =============================================================================
+;;; Malli Contracts
+;;; =============================================================================
+
+(def KwOpts
+  "Trailing keyword options: `k v` pairs, or a single trailing opts map."
+  [:alt [:* [:cat :keyword :any]] [:cat [:maybe :map]]])
+
+(def SlaveMap
+  "A slave row projected out of DataScript: refs resolved to ids, no :db/id."
+  [:map
+   [:slave/id :string]
+   [:slave/parent {:optional true} [:maybe :string]]
+   [:slave/current-task {:optional true} [:maybe :string]]])
+
+(def TaskMap
+  "A task row: :task/slave resolved to the owning slave id."
+  [:map
+   [:task/id :string]
+   [:task/slave {:optional true} [:maybe :string]]])
+
+(def ClaimMap
+  "A file claim projection (see get-claims-for-file / get-all-claims)."
+  [:map
+   [:file :string]
+   [:slave-id [:maybe :string]]
+   [:task-id [:maybe :string]]
+   [:created-at [:maybe inst?]]
+   [:prior-hash [:maybe :string]]
+   [:qn {:optional true} :any]
+   [:mode {:optional true} [:maybe :keyword]]])
+
+(def ClaimHistoryEntry
+  "A claim-history row with keys renamed to the unqualified projection."
+  [:map
+   [:id :string]
+   [:file :string]
+   [:slave-id :string]
+   [:released-at inst?]])
+
+(def Conflict
+  "has-conflict? result."
+  [:map
+   [:conflict? :boolean]
+   [:held-by {:optional true} [:maybe :string]]])
+
+(def DbStats
+  "Counts of each entity kind in the swarm db."
+  [:map
+   [:slaves nat-int?] [:tasks nat-int?] [:claims nat-int?]
+   [:claim-history nat-int?] [:active-tasks nat-int?]
+   [:wrap-queue nat-int?] [:unprocessed-wraps nat-int?]
+   [:completed-tasks nat-int?]])
+
+(defn- seq-of [s] [:maybe [:sequential s]])
+
+(m/=> get-slave [:=> [:cat :string] [:maybe SlaveMap]])
+(m/=> get-slave-by-name [:=> [:cat :string] [:maybe SlaveMap]])
+(m/=> get-slave-by-name-or-id [:=> [:cat :string] [:maybe SlaveMap]])
+(m/=> get-all-slaves [:=> [:cat KwOpts] (seq-of SlaveMap)])
+(m/=> get-slaves-by-status [:=> [:cat :keyword] (seq-of SlaveMap)])
+(m/=> get-slaves-by-project [:=> [:cat [:maybe :string] KwOpts] (seq-of SlaveMap)])
+(m/=> get-child-project-ids [:=> [:cat [:maybe :string]] [:set :string]])
+(m/=> get-slave-ids-by-project [:=> [:cat [:maybe :string]] (seq-of :string)])
+(m/=> get-slave-by-kanban-task [:=> [:cat :string] [:maybe SlaveMap]])
+(m/=> get-task [:=> [:cat :string] [:maybe TaskMap]])
+(m/=> get-tasks-for-slave [:=> [:cat :string [:? [:maybe :keyword]]] (seq-of TaskMap)])
+(m/=> get-completed-tasks [:=> [:cat KwOpts] (seq-of TaskMap)])
+(m/=> get-claims-for-file [:=> [:cat :string] [:maybe ClaimMap]])
+(m/=> get-all-claims [:=> [:cat] (seq-of ClaimMap)])
+(m/=> has-conflict? [:=> [:cat :string [:maybe :string]] Conflict])
+(m/=> check-file-conflicts [:=> [:cat [:maybe :string] [:maybe [:or [:sequential :string] [:set :string]]]]
+                            (seq-of [:map [:file :string] [:held-by [:maybe :string]]])])
+(m/=> get-recent-claim-history [:=> [:cat KwOpts] (seq-of ClaimHistoryEntry)])
+(m/=> db-stats [:=> [:cat] DbStats])
+(m/=> dump-db [:=> [:cat]
+               [:map
+                [:slaves (seq-of SlaveMap)]
+                [:tasks [:sequential :map]]
+                [:claims (seq-of ClaimMap)]
+                [:stats DbStats]]])
