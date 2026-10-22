@@ -94,4 +94,13 @@
   "DataScript connection: atom wrapping a DB, satisfies d/conn?."
   [:fn {:error/message "must be a DataScript connection"} d/conn?])
 
+(m/=> create-conn [:=> [:cat] DSConn])
+(m/=> get-conn [:=> [:cat] DSConn])
+(m/=> with-test-conn [:=> [:cat DSConn ifn?] :any])
+(m/=> current-test-conn [:=> [:cat] [:maybe DSConn]])
+(m/=> reset-conn! [:=> [:cat] :any])
 (m/=> ensure-conn [:=> [:cat] DSConn])
+(m/=> now [:=> [:cat] inst?])
+(m/=> gen-id [:function
+              [:=> [:cat] :string]
+              [:=> [:cat :string] :string]])

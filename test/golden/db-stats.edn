@@ -1,0 +1,2 @@
+{:three {:slaves 3, :tasks 3, :active-tasks 3},
+ :zero {:slaves 0, :tasks 0, :active-tasks 0}}

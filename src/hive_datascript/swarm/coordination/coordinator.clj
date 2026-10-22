@@ -5,7 +5,8 @@
   (:require [datascript.core :as d]
             [hive-datascript.swarm.connection :as conn]
             [hive-datascript.swarm.schema :as schema]
-            [taoensso.timbre :as log]))
+            [taoensso.timbre :as log]
+            [malli.core :as m]))
 
 (declare register-coordinator! update-heartbeat! get-coordinator get-all-coordinators get-coordinators-by-status get-coordinators-for-project mark-coordinator-terminated! mark-coordinator-stale! remove-coordinator!)
 
@@ -179,3 +180,43 @@
     (when-let [eid (:db/id (d/entity db [:coordinator/id coordinator-id]))]
       (log/info "Removing coordinator:" coordinator-id)
       (d/transact! c [[:db/retractEntity eid]]))))
+
+;;; =============================================================================
+;;; Malli Contracts
+;;; =============================================================================
+
+(def CoordinatorStatus
+  "Mirrors schema/coordinator-statuses."
+  (into [:enum] (sort schema/coordinator-statuses)))
+
+(def CoordinatorMap
+  "A coordinator row projected out of DataScript (no :db/id)."
+  [:map
+   [:coordinator/id :string]
+   [:coordinator/status CoordinatorStatus]
+   [:coordinator/project {:optional true} [:maybe :string]]
+   [:coordinator/pid {:optional true} int?]
+   [:coordinator/session-id {:optional true} :string]
+   [:coordinator/started-at {:optional true} inst?]
+   [:coordinator/heartbeat-at {:optional true} inst?]])
+
+(def RegisterOpts
+  [:maybe
+   [:map
+    [:project {:optional true} [:maybe :string]]
+    [:pid {:optional true} [:maybe int?]]
+    [:session-id {:optional true} [:maybe :string]]]])
+
+(def TxReport
+  "datascript transaction report."
+  [:map [:db-before :any] [:db-after :any] [:tx-data :any] [:tempids :any]])
+
+(m/=> register-coordinator! [:=> [:cat :string RegisterOpts] TxReport])
+(m/=> update-heartbeat! [:=> [:cat :string] [:maybe TxReport]])
+(m/=> get-coordinator [:=> [:cat :string] [:maybe CoordinatorMap]])
+(m/=> get-all-coordinators [:=> [:cat] [:maybe [:sequential CoordinatorMap]]])
+(m/=> get-coordinators-by-status [:=> [:cat CoordinatorStatus] [:maybe [:sequential CoordinatorMap]]])
+(m/=> get-coordinators-for-project [:=> [:cat [:maybe :string]] [:maybe [:sequential CoordinatorMap]]])
+(m/=> mark-coordinator-terminated! [:=> [:cat :string] [:maybe TxReport]])
+(m/=> mark-coordinator-stale! [:=> [:cat :string] [:maybe TxReport]])
+(m/=> remove-coordinator! [:=> [:cat :string] [:maybe TxReport]])

@@ -1,0 +1,4 @@
+{:heartbeat :active,
+ :none :active,
+ :stale :stale,
+ :terminated :terminated}
